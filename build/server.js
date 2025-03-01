@@ -2,14 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const promises_1 = require("fs/promises");
 const net_1 = require("net");
+const path_1 = require("path");
 const server = new net_1.Server({
     noDelay: true,
 });
+const BAD_REQUEST_CONTENT = Buffer.from(`p("Error: 400 Bad Request")`, "utf-8");
+const NOT_FOUND_CONTENT = Buffer.from(`p("Error: 404 Not Found")`, "utf-8");
+const METHOD_NOT_ALLOWED_CONTENT = Buffer.from(`p("Error: 405 Method Not Allowed")`, "utf-8");
 server.on("connection", socket => {
     console.log(`Connection from ${socket.remoteAddress}`);
     socket.on("data", data => {
         if (data.length < 7) {
-            socket.write(createResponseBuffer(400, "p(\"Error: 400 Bad Request\")"));
+            socket.write(createResponseBuffer(400, BAD_REQUEST_CONTENT));
             socket.end();
             return;
         }
@@ -27,21 +31,32 @@ async function handleRequest(socket, requestBuffer) {
     const content = requestBuffer.toString("utf8", 3 + pathLength + 4);
     console.log(`Received request: ${method} ${path}`);
     if (method !== 0) {
-        socket.write(createResponseBuffer(405, "Method Not Allowed"));
+        socket.write(createResponseBuffer(405, METHOD_NOT_ALLOWED_CONTENT));
         return;
     }
-    const pageSource = await (0, promises_1.readFile)("page.yap", "utf8");
-    socket.write(createResponseBuffer(200, pageSource));
+    if (path === "/") {
+        const indexFile = await (0, promises_1.readFile)("page.yap");
+        socket.write(createResponseBuffer(200, indexFile));
+        return;
+    }
+    const relativePath = (0, path_1.join)(module.path, path);
+    console.log(module.path, relativePath);
+    const bytes = await (0, promises_1.readFile)(relativePath).catch(error => null);
+    if (bytes === null) {
+        socket.write(createResponseBuffer(404, NOT_FOUND_CONTENT));
+        return;
+    }
+    socket.write(createResponseBuffer(200, bytes));
 }
 function createResponseBuffer(statusCode, content) {
     // Response Header:
     // <2:status_code> <4:content_length>
-    const encoder = new TextEncoder();
-    const contentArray = encoder.encode(content);
-    const responseBuffer = Buffer.alloc(6 + contentArray.byteLength);
+    // const encoder = new TextEncoder();
+    // const contentArray = encoder.encode(content);
+    const responseBuffer = Buffer.alloc(6 + content.byteLength);
     responseBuffer.writeUInt16BE(statusCode, 0);
-    responseBuffer.writeUInt32BE(contentArray.byteLength, 2);
-    responseBuffer.write(content, 6);
+    responseBuffer.writeUInt32BE(content.byteLength, 2);
+    responseBuffer.set(content, 6);
     return responseBuffer;
 }
 server.listen(5713, undefined, undefined, () => {
