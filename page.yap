@@ -13,10 +13,10 @@ p("")
 
 p("Here are screenshots:")
 row {
-    img(src = "yap://localhost/images/demo1.png")
-    img(src = "yap://localhost/images/demo2.png")
+    img(src: "internal:///images/demo1.png")
+    img(src: "internal:///images/demo2.png")
 }
 
 p("A link to the source code (with a QR code!)")
 p("https://github.com/AppleFlavored/yap")
-img(src = "yap://localhost/images/qrcode2repo.png")
+img(src: "internal:///images/qrcode2repo.png")
